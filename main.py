@@ -26,19 +26,22 @@ def wait_for_kafka(max_retries=5, delay=5):
     return False
 
 def init_csv_file():
-    """Inicjalizuje plik CSV z nagłówkami"""
+    """Inicjalizuje plik CSV z nagłówkami zgodnymi z API hydro2"""
+    fieldnames = [
+        'kod_stacji', 'nazwa_stacji', 'lon', 'lat',
+        'stan', 'stan_data', 'przeplyw', 'przeplyw_data',
+        'timestamp'
+    ]
+    
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8-sig') as file:
-        writer = csv.writer(file, delimiter=',')
-        writer.writerow([
-            'id_stacji', 'stacja', 'rzeka', 
-            'stan_wody', 'stan_wody_status', 'data_pomiaru', 'timestamp'
-        ])
+        writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=';')
+        writer.writeheader()
 
 def fetch_hydro_data():
-    """Pobiera dane z API IMGW"""
+    """Pobiera dane z API IMGW hydro2"""
     try:
         response = requests.get(API_URL, headers={'Accept': 'application/json'}, timeout=10)
-        response.encoding = 'utf-8'  # Ustawienie kodowania UTF-8 dla odpowiedzi
+        response.encoding = 'utf-8'
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -46,25 +49,34 @@ def fetch_hydro_data():
         return None
 
 def process_and_save_data(data):
-    """Zapisuje dane do pliku CSV z uwzględnieniem polskich znaków"""
+    """Zapisuje dane do pliku CSV"""
     if not data:
         return
 
+    fieldnames = [
+        'kod_stacji', 'nazwa_stacji', 'lon', 'lat',
+        'stan', 'stan_data', 'przeplyw', 'przeplyw_data',
+        'timestamp'
+    ]
+
     with open(CSV_FILE, mode='a', newline='', encoding='utf-8-sig') as file:
-        writer = csv.writer(file, delimiter=';')
+        writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=';')
         
         for record in data:
             try:
-                # Przygotowanie danych - zachowanie polskich znaków
-                writer.writerow([
-                    record.get('id_stacji', ''),
-                    record.get('stacja', ''),
-                    record.get('rzeka', ''),
-                    float(record.get('stan_wody')) if record.get('stan_wody') else '',
-                    record.get('stan_wody_status', ''),
-                    record.get('data_pomiaru', ''),
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                ])
+                # Przygotowanie rekordu z uwzględnieniem poprawnej nazwy 'przeplyw' (w API jest 'przelyw')
+                row = {
+                    'kod_stacji': record.get('kod_stacji'),
+                    'nazwa_stacji': record.get('nazwa_stacji'),
+                    'lon': record.get('lon'),
+                    'lat': record.get('lat'),
+                    'stan': record.get('stan'),
+                    'stan_data': record.get('stan_data'),
+                    'przeplyw': record.get('przelyw'),  # Uwaga na różnicę w nazwie pola!
+                    'przeplyw_data': record.get('przeplyw_data'),
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                writer.writerow(row)
             except Exception as e:
                 print(f"⚠️ Błąd podczas zapisu rekordu: {e}")
     
