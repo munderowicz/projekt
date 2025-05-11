@@ -70,4 +70,60 @@ def process_and_save_data(data):
     
     print(f"💾 Zapisano {len(data)} rekordów do pliku CSV")
 
-# ... (reszta kodu pozostaje bez zmian)
+def kafka_producer():
+    """Wysyła dane do Kafka"""
+    if not wait_for_kafka():
+        print("❌ Nie można połączyć się z brokerem Kafka")
+        return
+
+    producer = KafkaProducer(
+        bootstrap_servers=[KAFKA_BOOTSTRAP_SERVERS],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+
+    data = fetch_hydro_data()
+    if data:
+        producer.send(HYDRO_TOPIC, value=data)
+        producer.flush()
+        print(f"📤 Wysłano {len(data)} rekordów do topiku '{HYDRO_TOPIC}'")
+
+def kafka_consumer():
+    """Odbiera dane z Kafka i zapisuje do CSV"""
+    if not wait_for_kafka():
+        print("❌ Nie można połączyć się z brokerem Kafka")
+        return
+
+    consumer = KafkaConsumer(
+        HYDRO_TOPIC,
+        bootstrap_servers=[KAFKA_BOOTSTRAP_SERVERS],
+        auto_offset_reset='earliest',
+        enable_auto_commit=True,
+        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+    )
+
+    print("📥 Konsument uruchomiony – oczekiwanie na dane...")
+    for message in consumer:
+        try:
+            data = message.value
+            if isinstance(data, list):
+                print(f"✅ Odebrano {len(data)} rekordów")
+                process_and_save_data(data)
+            else:
+                print("⚠️ Otrzymano dane w nieoczekiwanym formacie:", type(data))
+        except json.JSONDecodeError as e:
+            print(f"❌ Błąd dekodowania JSON: {e}")
+        except Exception as e:
+            print(f"❌ Inny błąd: {e}")
+
+if __name__ == '__main__':
+    init_csv_file()
+
+    # Tryb działania z linii poleceń: python script.py producer
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'consumer'
+
+    if mode == 'producer':
+        kafka_producer()
+    elif mode == 'consumer':
+        kafka_consumer()
+    else:
+        print("⚠️ Nieznany tryb. Użyj 'producer' lub 'consumer'.")
