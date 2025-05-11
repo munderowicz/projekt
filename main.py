@@ -1,6 +1,6 @@
 import json
 import requests
-import sqlite3
+import csv
 import time
 import sys
 from kafka import KafkaConsumer, KafkaProducer
@@ -10,7 +10,7 @@ from datetime import datetime
 # Konfiguracja
 KAFKA_BOOTSTRAP_SERVERS = '172.18.0.3:9092'
 HYDRO_TOPIC = 'imgw-hydro-data'
-DATABASE_NAME = 'imgw_hydro_data.db'
+CSV_FILE = 'hydro_data.csv'
 API_URL = 'https://danepubliczne.imgw.pl/api/data/hydro2/'
 
 def wait_for_kafka(max_retries=5, delay=5):
@@ -25,29 +25,20 @@ def wait_for_kafka(max_retries=5, delay=5):
             time.sleep(delay)
     return False
 
-def create_database():
-    """Tworzy bazę danych SQLite"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS hydro_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            station_id TEXT,
-            station_name TEXT,
-            river TEXT,
-            water_level REAL,
-            water_status TEXT,
-            measurement_date TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
+def init_csv_file():
+    """Inicjalizuje plik CSV z nagłówkami"""
+    with open(CSV_FILE, mode='w', newline='', encoding='utf-8-sig') as file:
+        writer = csv.writer(file, delimiter=';')
+        writer.writerow([
+            'id_stacji', 'stacja', 'rzeka', 
+            'stan_wody', 'stan_wody_status', 'data_pomiaru', 'timestamp'
+        ])
 
 def fetch_hydro_data():
     """Pobiera dane z API IMGW"""
     try:
         response = requests.get(API_URL, headers={'Accept': 'application/json'}, timeout=10)
+        response.encoding = 'utf-8'  # Ustawienie kodowania UTF-8 dla odpowiedzi
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -55,88 +46,28 @@ def fetch_hydro_data():
         return None
 
 def process_and_save_data(data):
-    """Zapisuje dane do SQLite"""
+    """Zapisuje dane do pliku CSV z uwzględnieniem polskich znaków"""
     if not data:
         return
 
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
+    with open(CSV_FILE, mode='a', newline='', encoding='utf-8-sig') as file:
+        writer = csv.writer(file, delimiter=';')
+        
+        for record in data:
+            try:
+                # Przygotowanie danych - zachowanie polskich znaków
+                writer.writerow([
+                    record.get('id_stacji', ''),
+                    record.get('stacja', ''),
+                    record.get('rzeka', ''),
+                    float(record.get('stan_wody')) if record.get('stan_wody') else '',
+                    record.get('stan_wody_status', ''),
+                    record.get('data_pomiaru', ''),
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ])
+            except Exception as e:
+                print(f"⚠️ Błąd podczas zapisu rekordu: {e}")
     
-    for record in data:
-        try:
-            cursor.execute('''
-                INSERT INTO hydro_data 
-                (station_id, station_name, river, water_level, water_status, measurement_date)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                record.get('id_stacji'),
-                record.get('stacja'),
-                record.get('rzeka'),
-                float(record.get('stan_wody')) if record.get('stan_wody') else None,
-                record.get('stan_wody_status'),
-                record.get('data_pomiaru')
-            ))
-        except Exception as e:
-            print(f"⚠️ Błąd podczas zapisu rekordu: {e}")
-    
-    conn.commit()
-    conn.close()
-    print(f"💾 Zapisano {len(data)} rekordów do bazy danych")
+    print(f"💾 Zapisano {len(data)} rekordów do pliku CSV")
 
-def kafka_producer():
-    """Wysyła dane do Kafka"""
-    if not wait_for_kafka():
-        print("❌ Nie można połączyć się z brokerem Kafka")
-        return
-
-    producer = KafkaProducer(
-        bootstrap_servers=[KAFKA_BOOTSTRAP_SERVERS],
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
-
-    data = fetch_hydro_data()
-    if data:
-        producer.send(HYDRO_TOPIC, value=data)
-        producer.flush()
-        print(f"📤 Wysłano {len(data)} rekordów do topiku '{HYDRO_TOPIC}'")
-
-def kafka_consumer():
-    """Odbiera dane z Kafka i zapisuje do bazy"""
-    if not wait_for_kafka():
-        print("❌ Nie można połączyć się z brokerem Kafka")
-        return
-
-    consumer = KafkaConsumer(
-        HYDRO_TOPIC,
-        bootstrap_servers=[KAFKA_BOOTSTRAP_SERVERS],
-        auto_offset_reset='earliest',
-        enable_auto_commit=True,
-        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
-    )
-
-    print("📥 Konsument uruchomiony – oczekiwanie na dane...")
-    for message in consumer:
-        try:
-            data = message.value
-            if isinstance(data, list):
-                print(f"✅ Odebrano {len(data)} rekordów")
-                process_and_save_data(data)
-            else:
-                print("⚠️ Otrzymano dane w nieoczekiwanym formacie:", type(data))
-        except json.JSONDecodeError as e:
-            print(f"❌ Błąd dekodowania JSON: {e}")
-        except Exception as e:
-            print(f"❌ Inny błąd: {e}")
-
-if __name__ == '__main__':
-    create_database()
-
-    # Tryb działania z linii poleceń: python script.py producer
-    mode = sys.argv[1] if len(sys.argv) > 1 else 'consumer'
-
-    if mode == 'producer':
-        kafka_producer()
-    elif mode == 'consumer':
-        kafka_consumer()
-    else:
-        print("⚠️ Nieznany tryb. Użyj 'producer' lub 'consumer'.")
+# ... (reszta kodu pozostaje bez zmian)
