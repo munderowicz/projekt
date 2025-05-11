@@ -3,23 +3,23 @@ from jinja2 import Template
 from datetime import datetime
 
 def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.html'):
-    # Wczytaj dane z pliku CSV z uwzględnieniem polskich znaków
+    # Wczytaj dane z pliku CSV
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as file:
-        reader = csv.DictReader(file, delimiter=',')
+        reader = csv.DictReader(file, delimiter=';')
         for row in reader:
-            # Konwersja pustych stringów na None dla lepszego wyświetlania
+            # Konwersja pustych wartości na None dla lepszego wyświetlania
             cleaned_row = {k: (v if v != '' else None) for k, v in row.items()}
             data.append(cleaned_row)
 
-    # Szablon HTML z tabelą
+    # Szablon HTML z tabelą danych
     html_template = Template("""
     <!DOCTYPE html>
     <html lang="pl">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Dane hydrologiczne IMGW</title>
+        <title>Dane hydrologiczne IMGW (hydro2)</title>
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -41,9 +41,10 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
             table {
                 width: 100%;
                 border-collapse: collapse;
+                font-size: 0.9em;
             }
             th, td {
-                padding: 12px 15px;
+                padding: 10px 12px;
                 text-align: left;
                 border-bottom: 1px solid #ddd;
             }
@@ -69,27 +70,44 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
                 color: #999;
                 font-style: italic;
             }
+            .coords {
+                font-family: monospace;
+            }
         </style>
     </head>
     <body>
-        <h1>Dane hydrologiczne IMGW</h1>
+        <h1>Dane hydrologiczne IMGW (hydro2)</h1>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        {% for header in headers %}
-                        <th>{{ header }}</th>
-                        {% endfor %}
+                        <th>Kod stacji</th>
+                        <th>Nazwa stacji</th>
+                        <th>Współrzędne</th>
+                        <th>Stan wody</th>
+                        <th>Data pomiaru stanu</th>
+                        <th>Przepływ</th>
+                        <th>Data pomiaru przepływu</th>
+                        <th>Timestamp</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in data %}
                     <tr>
-                        {% for header in headers %}
-                        <td {% if row[header] is none %}class="null-value"{% endif %}>
-                            {{ row[header] if row[header] is not none else 'brak danych' }}
+                        <td>{{ row['kod_stacji'] if row['kod_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['nazwa_stacji'] if row['nazwa_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td class="coords">
+                            {% if row['lon'] is not none and row['lat'] is not none %}
+                            {{ "%.6f"|format(row['lon']|float) }}, {{ "%.6f"|format(row['lat']|float) }}
+                            {% else %}
+                            <span class="null-value">brak</span>
+                            {% endif %}
                         </td>
-                        {% endfor %}
+                        <td>{{ row['stan'] if row['stan'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['stan_data'] if row['stan_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw'] if row['przeplyw'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw_data'] if row['przeplyw_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['timestamp'] if row['timestamp'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -103,15 +121,13 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
     """)
 
     # Generuj HTML
-    headers = ['id_stacji', 'stacja', 'rzeka', 'stan_wody', 'stan_wody_status', 'data_pomiaru', 'timestamp']
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     final_html = html_template.render(
-        headers=headers,
         data=data,
         timestamp=timestamp
     )
 
-    # Zapisz do pliku z kodowaniem UTF-8
+    # Zapisz do pliku
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(final_html)
     
