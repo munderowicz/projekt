@@ -1,10 +1,11 @@
+
 import json
 import requests
 import time
 from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
 
-KAFKA_BOOTSTRAP_SERVERS = 'localhost:9092'  # Zmień na odpowiedni adres
+KAFKA_BOOTSTRAP_SERVERS = '172.18.0.3:9092'
 HYDRO_TOPIC = 'imgw-hydro-data'
 API_URL = 'https://danepubliczne.imgw.pl/api/data/hydro2/'
 
@@ -38,13 +39,11 @@ def kafka_producer():
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
 
-    while True:
-        data = fetch_hydro_data()
-        if data:
-            producer.send(HYDRO_TOPIC, value=data)
-            producer.flush()
-            print(f"📤 Wysłano {len(data)} rekordów do topiku '{HYDRO_TOPIC}'.")
-        time.sleep(3600)  # Wysyłaj dane co godzinę
+    data = fetch_hydro_data()
+    if data:
+        producer.send(HYDRO_TOPIC, value=data)
+        producer.flush()
+        print(f"📤 Wysłano {len(data)} rekordów do topiku '{HYDRO_TOPIC}'.")
 
 if __name__ == '__main__':
     kafka_producer()
