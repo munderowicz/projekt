@@ -28,7 +28,7 @@ def wait_for_kafka(max_retries=5, delay=5):
 def init_csv_file():
     """Inicjalizuje plik CSV z nagłówkami"""
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8-sig') as file:
-        writer = csv.writer(file, delimiter=';')
+        writer = csv.writer(file, delimiter=',')
         writer.writerow([
             'id_stacji', 'stacja', 'rzeka', 
             'stan_wody', 'stan_wody_status', 'data_pomiaru', 'timestamp'
