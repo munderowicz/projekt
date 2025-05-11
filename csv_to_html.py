@@ -6,7 +6,7 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
     # Wczytaj dane z pliku CSV z uwzględnieniem polskich znaków
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as file:
-        reader = csv.DictReader(file, delimiter=';')
+        reader = csv.DictReader(file, delimiter=',')
         for row in reader:
             # Konwersja pustych stringów na None dla lepszego wyświetlania
             cleaned_row = {k: (v if v != '' else None) for k, v in row.items()}
