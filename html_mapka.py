@@ -347,8 +347,8 @@ warning_gdf = gpd.GeoDataFrame(warning_data, geometry=warning_geometry, crs="EPS
 # Tworzymy GeoDataFrame dla stacji alarmowych
 alarm_gdf = gpd.GeoDataFrame(alarm_data, geometry=alarm_geometry, crs="EPSG:4326")
  
-# Wczytujemy granice Polski z pliku GeoPackage (.gpkg)
-poland = gpd.read_file('123/projekt/projekt/granice_polski_wgs84.gpkg', layer='granice_polski_wgs84 — polska_wgs84')  # Zastąp 'layer_name' odpowiednią nazwą warstwy w pliku GeoPackage
+# Wczytujemy granice Polski z pliku GeoJSON
+poland = gpd.read_file('/path/to/poland.geojson')  # Zamień na ścieżkę do pliku GeoJSON
  
 # Rysujemy mapę Polski
 fig, ax = plt.subplots(figsize=(10, 10))
