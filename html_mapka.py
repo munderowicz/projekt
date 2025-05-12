@@ -319,3 +319,52 @@ if __name__ == '__main__':
 
 
 
+### KOD NA MAPE
+import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+from shapely.geometry import Point
+ 
+# Wczytaj dane z pliku CSV
+data = pd.read_csv('hydro_data.csv', delimiter=';')
+ 
+# Wybieramy stacje z poziomem ostrzegawczym (450 ≤ stan < 500)
+warning_data = data[data['stan'].between(450, 499, inclusive='left')]
+ 
+# Wybieramy stacje z poziomem alarmowym (stan ≥ 500)
+alarm_data = data[data['stan'] >= 500]
+ 
+# Przekształcamy dane na współrzędne geograficzne (Point geometry)
+warning_geometry = [Point(xy) for xy in zip(warning_data['lon'], warning_data['lat'])]
+alarm_geometry = [Point(xy) for xy in zip(alarm_data['lon'], alarm_data['lat'])]
+ 
+# Tworzymy GeoDataFrame dla stacji ostrzegawczych
+warning_gdf = gpd.GeoDataFrame(warning_data, geometry=warning_geometry, crs="EPSG:4326")
+ 
+# Tworzymy GeoDataFrame dla stacji alarmowych
+alarm_gdf = gpd.GeoDataFrame(alarm_data, geometry=alarm_geometry, crs="EPSG:4326")
+ 
+# Wczytujemy mapę Polski (boundary)
+world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+poland = world[world.name == "Poland"]
+ 
+# Rysujemy mapę Polski
+fig, ax = plt.subplots(figsize=(10, 10))
+ 
+# Wyświetlamy granice Polski
+poland.plot(ax=ax, color='lightgray')
+ 
+# Rysujemy stacje z poziomem ostrzegawczym (pomarańczowe punkty)
+warning_gdf.plot(ax=ax, marker='o', color='orange', markersize=5, label='Poziom Ostrzegawczy')
+ 
+# Rysujemy stacje z poziomem alarmowym (czerwone punkty)
+alarm_gdf.plot(ax=ax, marker='o', color='red', markersize=5, label='Poziom Alarmowy')
+ 
+# Dodajemy legendę
+plt.legend()
+ 
+# Dodajemy tytuł
+plt.title('Stacje z poziomem ostrzegawczym i alarmowym na mapie Polski')
+ 
+# Wyświetlamy mapę
+plt.show()
