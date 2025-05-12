@@ -1,5 +1,3 @@
-pip install Flask
-
 import os
 import csv
 from jinja2 import Template
