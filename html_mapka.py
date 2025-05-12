@@ -348,7 +348,7 @@ warning_gdf = gpd.GeoDataFrame(warning_data, geometry=warning_geometry, crs="EPS
 alarm_gdf = gpd.GeoDataFrame(alarm_data, geometry=alarm_geometry, crs="EPSG:4326")
  
 # Wczytujemy granice Polski z pliku GeoJSON
-poland = gpd.read_file('123/projekt/projekt/poland.geojson')  # Zamień na ścieżkę do pliku GeoJSON
+poland = gpd.read_file('123\projekt\projekt\poland.geojson')  # Zamień na ścieżkę do pliku GeoJSON
  
 # Rysujemy mapę Polski
 fig, ax = plt.subplots(figsize=(10, 10))
