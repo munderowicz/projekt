@@ -1,15 +1,18 @@
+pip install Flask
+
 import os
 import csv
 from jinja2 import Template
 from datetime import datetime
-import shutil
+from flask import Flask, render_template_string
 
+app = Flask(__name__)
+
+# Funkcja klasyfikująca stany wód
 def classify_water_levels(data):
-    """Klasyfikuje stany wód na podstawie wartości w kolumnie 'stan'"""
     alarm_state = []
     warning_state = []
     normal_state = []
-    
     for row in data:
         try:
             if row['stan'] is not None:
@@ -22,35 +25,27 @@ def classify_water_levels(data):
                     normal_state.append(row)
         except (ValueError, TypeError):
             continue
-    
     return alarm_state, warning_state, normal_state
 
+# Funkcja generująca HTML z danymi
 def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.html', last_updated_file='last_updated.txt'):
-    # Sprawdzamy datę ostatniej aktualizacji
-    last_updated = None
-    if os.path.exists(last_updated_file):
-        with open(last_updated_file, 'r') as f:
-            last_updated = f.read().strip()
-
-    # Wczytaj dane z pliku CSV
+    # Wczytanie danych z pliku CSV
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as file:
         reader = csv.DictReader(file, delimiter=';')
         for row in reader:
-            # Konwersja pustych wartości na None dla lepszego wyświetlania
             cleaned_row = {k: (v if v != '' else None) for k, v in row.items()}
             data.append(cleaned_row)
 
-    # Klasyfikuj stany wód
+    # Klasyfikacja stanów wód
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # Sprawdzanie, czy dane są nowe
+    # Zapis daty ostatniej aktualizacji
     current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if last_updated != current_timestamp:
-        with open(last_updated_file, 'w') as f:
-            f.write(current_timestamp)
-    
-    # Szablon HTML z tabelami danych
+    with open(last_updated_file, 'w') as f:
+        f.write(current_timestamp)
+
+    # Szablon HTML
     html_template = Template("""
     <!DOCTYPE html>
     <html lang="pl">
@@ -99,52 +94,6 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
             tr:hover {
                 background-color: #e6f7ff;
             }
-            .footer {
-                text-align: center;
-                margin-top: 20px;
-                color: #7f8c8d;
-                font-size: 0.9em;
-            }
-            .null-value {
-                color: #999;
-                font-style: italic;
-            }
-            .coords {
-                font-family: monospace;
-            }
-            .alarm {
-                background-color: #ffdddd;
-            }
-            .alarm th {
-                background-color: #ff4444;
-            }
-            .warning {
-                background-color: #fff3cd;
-            }
-            .warning th {
-                background-color: #ffc107;
-            }
-            .summary {
-                display: flex;
-                justify-content: space-around;
-                margin-bottom: 20px;
-            }
-            .summary-box {
-                padding: 15px;
-                border-radius: 8px;
-                text-align: center;
-                font-weight: bold;
-                color: white;
-            }
-            .alarm-summary {
-                background-color: #ff4444;
-            }
-            .warning-summary {
-                background-color: #ffc107;
-            }
-            .normal-summary {
-                background-color: #28a745;
-            }
             #refresh-button {
                 position: fixed;
                 top: 20px;
@@ -161,28 +110,13 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
             #refresh-button:hover {
                 background-color: #2980b9;
             }
-            .null-value {
-                font-style: italic;
-            }
         </style>
     </head>
     <body>
         <h1>Dane hydrologiczne IMGW (hydro2)</h1>
 
-        <div class="summary">
-            <div class="summary-box alarm-summary">
-                Stany alarmowe (≥500): {{ alarm_state|length }}
-            </div>
-            <div class="summary-box warning-summary">
-                Stany ostrzegawcze (450-499): {{ warning_state|length }}
-            </div>
-            <div class="summary-box normal-summary">
-                Stany normalne (<450): {{ normal_state|length }}
-            </div>
-        </div>
-
         <h2>⚠️ Stany alarmowe (≥500)</h2>
-        <div class="table-container alarm">
+        <div class="table-container">
             <table>
                 <thead>
                     <tr>
@@ -190,9 +124,6 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
                         <th>Nazwa stacji</th>
                         <th>Współrzędne</th>
                         <th>Stan wody</th>
-                        <th>Data pomiaru stanu</th>
-                        <th>Przepływ</th>
-                        <th>Data pomiaru przepływu</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -202,54 +133,49 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
                         <td>{{ row['nazwa_stacji'] }}</td>
                         <td>{{ row['lon'] }}, {{ row['lat'] }}</td>
                         <td>{{ row['stan'] }}</td>
-                        <td>{{ row['stan_data'] }}</td>
-                        <td>{{ row['przeplyw'] }}</td>
-                        <td>{{ row['przeplyw_data'] }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <h2>⚠ Stany ostrzegawcze (450-499)</h2>
-        <div class="table-container warning">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Kod stacji</th>
-                        <th>Nazwa stacji</th>
-                        <th>Współrzędne</th>
-                        <th>Stan wody</th>
-                        <th>Data pomiaru stanu</th>
-                        <th>Przepływ</th>
-                        <th>Data pomiaru przepływu</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in warning_state %}
-                    <tr>
-                        <td>{{ row['kod_stacji'] }}</td>
-                        <td>{{ row['nazwa_stacji'] }}</td>
-                        <td>{{ row['lon'] }}, {{ row['lat'] }}</td>
-                        <td>{{ row['stan'] }}</td>
-                        <td>{{ row['stan_data'] }}</td>
-                        <td>{{ row['przeplyw'] }}</td>
-                        <td>{{ row['przeplyw_data'] }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div id="refresh-button">
+            <form action="/refresh" method="post">
+                <button type="submit">Odśwież dane</button>
+            </form>
         </div>
 
-        <h2>Wszystkie stacje</h2>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Kod stacji</th>
-                        <th>Nazwa stacji</th>
-                        <th>Współrzędne</th>
-                        <th>Stan wody</th>
-                        <th>Data pomiaru stanu</th>
-                        <th>Przepływ</th>
-                        <th>Data
+        <div class="footer">
+            Ostatnia aktualizacja: {{ timestamp }}
+        </div>
+    </body>
+    </html>
+    """)
+
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Renderowanie HTML
+    final_html = html_template.render(
+        data=data,
+        alarm_state=alarm_state,
+        warning_state=warning_state,
+        normal_state=normal_state,
+        timestamp=timestamp
+    )
+
+    return final_html
+
+# Trasa główna strony
+@app.route('/')
+def index():
+    html_content = generate_html_from_csv()
+    return render_template_string(html_content)
+
+# Trasa do odświeżenia danych
+@app.route('/refresh', methods=['POST'])
+def refresh():
+    html_content = generate_html_from_csv()
+    return render_template_string(html_content)
+
+if __name__ == '__main__':
+    app.run(debug=True)
