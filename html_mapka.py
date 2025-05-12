@@ -146,8 +146,20 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
                 background-color: #28a745;
             }
             #refresh-button {
-                text-align: center;
-                margin-top: 20px;
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 30px;
+                background-color: #3498db;
+                color: white;
+                font-size: 16px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            #refresh-button:hover {
+                background-color: #2980b9;
             }
             .null-value {
                 font-style: italic;
@@ -240,56 +252,4 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
                         <th>Stan wody</th>
                         <th>Data pomiaru stanu</th>
                         <th>Przepływ</th>
-                        <th>Data pomiaru przepływu</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in data %}
-                    <tr>
-                        <td>{{ row['kod_stacji'] }}</td>
-                        <td>{{ row['nazwa_stacji'] }}</td>
-                        <td>{{ row['lon'] }}, {{ row['lat'] }}</td>
-                        <td>{{ row['stan'] }}</td>
-                        <td>{{ row['stan_data'] }}</td>
-                        <td>{{ row['przeplyw'] }}</td>
-                        <td>{{ row['przeplyw_data'] }}</td>
-                        <td>{{ row['status'] }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <div id="refresh-button">
-            <button onclick="location.reload()">Odśwież dane</button>
-            <p>{{ status_message }}</p>
-        </div>
-
-        <div class="footer">
-            Ostatnia aktualizacja: {{ timestamp }} | Liczba rekordów: {{ data|length }}
-        </div>
-    </body>
-    </html>
-    """)
-
-    # Generuj HTML
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    status_message = "Aktualnie pracujesz na najnowszych danych" if last_updated == current_timestamp else "Dane zostały zaktualizowane"
-    final_html = html_template.render(
-        data=data,
-        alarm_state=alarm_state,
-        warning_state=warning_state,
-        normal_state=normal_state,
-        timestamp=timestamp,
-        status_message=status_message
-    )
-
-    # Zapisz do pliku
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(final_html)
-    
-    print(f"✅ Wygenerowano plik HTML: {output_file}")
-
-if __name__ == '__main__':
-    generate_html_from_csv()
+                        <th>Data
