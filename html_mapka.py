@@ -1,16 +1,13 @@
-import os
 import csv
 from jinja2 import Template
 from datetime import datetime
-from flask import Flask, render_template_string
 
-app = Flask(__name__)
-
-# Funkcja klasyfikująca stany wód
 def classify_water_levels(data):
+    """Klasyfikuje stany wód na podstawie wartości w kolumnie 'stan'"""
     alarm_state = []
     warning_state = []
     normal_state = []
+    
     for row in data:
         try:
             if row['stan'] is not None:
@@ -23,27 +20,23 @@ def classify_water_levels(data):
                     normal_state.append(row)
         except (ValueError, TypeError):
             continue
+    
     return alarm_state, warning_state, normal_state
 
-# Funkcja generująca HTML z danymi
-def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.html', last_updated_file='last_updated.txt'):
-    # Wczytanie danych z pliku CSV
+def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.html'):
+    # Wczytaj dane z pliku CSV
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as file:
         reader = csv.DictReader(file, delimiter=';')
         for row in reader:
+            # Konwersja pustych wartości na None dla lepszego wyświetlania
             cleaned_row = {k: (v if v != '' else None) for k, v in row.items()}
             data.append(cleaned_row)
 
-    # Klasyfikacja stanów wód
+    # Klasyfikuj stany wód
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # Zapis daty ostatniej aktualizacji
-    current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(last_updated_file, 'w') as f:
-        f.write(current_timestamp)
-
-    # Szablon HTML
+    # Szablon HTML z tabelami danych
     html_template = Template("""
     <!DOCTYPE html>
     <html lang="pl">
@@ -92,28 +85,146 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
             tr:hover {
                 background-color: #e6f7ff;
             }
-            #refresh-button {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 15px 30px;
-                background-color: #3498db;
-                color: white;
-                font-size: 16px;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            .footer {
+                text-align: center;
+                margin-top: 20px;
+                color: #7f8c8d;
+                font-size: 0.9em;
             }
-            #refresh-button:hover {
-                background-color: #2980b9;
+            .null-value {
+                color: #999;
+                font-style: italic;
+            }
+            .coords {
+                font-family: monospace;
+            }
+            .alarm {
+                background-color: #ffdddd;
+            }
+            .alarm th {
+                background-color: #ff4444;
+            }
+            .warning {
+                background-color: #fff3cd;
+            }
+            .warning th {
+                background-color: #ffc107;
+            }
+            .summary {
+                display: flex;
+                justify-content: space-around;
+                margin-bottom: 20px;
+            }
+            .summary-box {
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                font-weight: bold;
+                color: white;
+            }
+            .alarm-summary {
+                background-color: #ff4444;
+            }
+            .warning-summary {
+                background-color: #ffc107;
+            }
+            .normal-summary {
+                background-color: #28a745;
             }
         </style>
     </head>
     <body>
         <h1>Dane hydrologiczne IMGW (hydro2)</h1>
+        
+        <div class="summary">
+            <div class="summary-box alarm-summary">
+                Stany alarmowe (≥500): {{ alarm_state|length }}
+            </div>
+            <div class="summary-box warning-summary">
+                Stany ostrzegawcze (450-499): {{ warning_state|length }}
+            </div>
+            <div class="summary-box normal-summary">
+                Stany normalne (<450): {{ normal_state|length }}
+            </div>
+        </div>
 
+        {% if alarm_state %}
         <h2>⚠️ Stany alarmowe (≥500)</h2>
+        <div class="table-container alarm">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Kod stacji</th>
+                        <th>Nazwa stacji</th>
+                        <th>Współrzędne</th>
+                        <th>Stan wody</th>
+                        <th>Data pomiaru stanu</th>
+                        <th>Przepływ</th>
+                        <th>Data pomiaru przepływu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in alarm_state %}
+                    <tr>
+                        <td>{{ row['kod_stacji'] if row['kod_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['nazwa_stacji'] if row['nazwa_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td class="coords">
+                            {% if row['lon'] is not none and row['lat'] is not none %}
+                            {{ "%.6f"|format(row['lon']|float) }}, {{ "%.6f"|format(row['lat']|float) }}
+                            {% else %}
+                            <span class="null-value">brak</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ row['stan'] }}</strong></td>
+                        <td>{{ row['stan_data'] if row['stan_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw'] if row['przeplyw'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw_data'] if row['przeplyw_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if warning_state %}
+        <h2>⚠ Stany ostrzegawcze (450-499)</h2>
+        <div class="table-container warning">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Kod stacji</th>
+                        <th>Nazwa stacji</th>
+                        <th>Współrzędne</th>
+                        <th>Stan wody</th>
+                        <th>Data pomiaru stanu</th>
+                        <th>Przepływ</th>
+                        <th>Data pomiaru przepływu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in warning_state %}
+                    <tr>
+                        <td>{{ row['kod_stacji'] if row['kod_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['nazwa_stacji'] if row['nazwa_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td class="coords">
+                            {% if row['lon'] is not none and row['lat'] is not none %}
+                            {{ "%.6f"|format(row['lon']|float) }}, {{ "%.6f"|format(row['lat']|float) }}
+                            {% else %}
+                            <span class="null-value">brak</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ row['stan'] }}</strong></td>
+                        <td>{{ row['stan_data'] if row['stan_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw'] if row['przeplyw'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw_data'] if row['przeplyw_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <h2>Wszystkie stacje</h2>
         <div class="table-container">
             <table>
                 <thead>
@@ -122,37 +233,73 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
                         <th>Nazwa stacji</th>
                         <th>Współrzędne</th>
                         <th>Stan wody</th>
+                        <th>Data pomiaru stanu</th>
+                        <th>Przepływ</th>
+                        <th>Data pomiaru przepływu</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in alarm_state %}
+                    {% for row in data %}
                     <tr>
-                        <td>{{ row['kod_stacji'] }}</td>
-                        <td>{{ row['nazwa_stacji'] }}</td>
-                        <td>{{ row['lon'] }}, {{ row['lat'] }}</td>
-                        <td>{{ row['stan'] }}</td>
+                        <td>{{ row['kod_stacji'] if row['kod_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['nazwa_stacji'] if row['nazwa_stacji'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td class="coords">
+                            {% if row['lon'] is not none and row['lat'] is not none %}
+                            {{ "%.6f"|format(row['lon']|float) }}, {{ "%.6f"|format(row['lat']|float) }}
+                            {% else %}
+                            <span class="null-value">brak</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row['stan'] is not none %}
+                                {% set level = row['stan']|float %}
+                                {% if level >= 500 %}
+                                    <strong style="color: red;">{{ row['stan'] }}</strong>
+                                {% elif level >= 450 %}
+                                    <strong style="color: orange;">{{ row['stan'] }}</strong>
+                                {% else %}
+                                    {{ row['stan'] }}
+                                {% endif %}
+                            {% else %}
+                                <span class="null-value">brak</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row['stan_data'] if row['stan_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw'] if row['przeplyw'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>{{ row['przeplyw_data'] if row['przeplyw_data'] is not none else '<span class="null-value">brak</span>'|safe }}</td>
+                        <td>
+                            {% if row['stan'] is not none %}
+                                {% set level = row['stan']|float %}
+                                {% if level >= 500 %}
+                                    <span style="color: red;">ALARM</span>
+                                {% elif level >= 450 %}
+                                    <span style="color: orange;">OSTRZEŻENIE</span>
+                                {% else %}
+                                    <span style="color: green;">NORMALNY</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="null-value">brak danych</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <div id="refresh-button">
-            <form action="/refresh" method="post">
-                <button type="submit">Odśwież dane</button>
-            </form>
-        </div>
-
         <div class="footer">
-            Ostatnia aktualizacja: {{ timestamp }}
+            Ostatnia aktualizacja: {{ timestamp }} | 
+            Liczba rekordów: {{ data|length }} | 
+            Stany alarmowe: {{ alarm_state|length }} | 
+            Stany ostrzegawcze: {{ warning_state|length }}
         </div>
     </body>
     </html>
     """)
 
+    # Generuj HTML
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    # Renderowanie HTML
     final_html = html_template.render(
         data=data,
         alarm_state=alarm_state,
@@ -161,19 +308,14 @@ def generate_html_from_csv(csv_file='hydro_data.csv', output_file='hydro_table.h
         timestamp=timestamp
     )
 
-    return final_html
-
-# Trasa główna strony
-@app.route('/')
-def index():
-    html_content = generate_html_from_csv()
-    return render_template_string(html_content)
-
-# Trasa do odświeżenia danych
-@app.route('/refresh', methods=['POST'])
-def refresh():
-    html_content = generate_html_from_csv()
-    return render_template_string(html_content)
+    # Zapisz do pliku
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(final_html)
+    
+    print(f"✅ Wygenerowano plik HTML: {output_file}")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    generate_html_from_csv()
+
+
+
